@@ -8,7 +8,7 @@ dataframe class for c++ language
 - concat & add double DataFrame object (horizontally & vertically) 
 
 
-**Build requirements:** c++ 11^+^ 
+**Build requirements:** c++ 11 to 17
 
 ## Quick start
 
