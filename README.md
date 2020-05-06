@@ -19,25 +19,23 @@ dataframe class for c++ language
 #include "dataframe.hpp"
 
 int main() {
-    
-    DataFrame<int> d1;
-    DataFrame<int> d2;
-
+    DataFrame<double> d1;
+    DataFrame<double> d2;
     //read from csv file
     d1.read_csv("../test.txt",',');
     d2.read_csv("../test.txt",',');
     //concat double DataFrame object vertically
     auto d3 = d1 + d2;
     // insert one column from std::vector<T>
-    d3["h"] = d3["f"]  = d3["g"] = std::vector<int>{6,7,8,9};
-    // change data
-    d3["f"][3] = 2;
+    d3["h"] = d3["f"]  = d3["g"] = std::vector<double>{6,7,8,9};
     //remove one column by str
     d3.remove("g");
     //append one row from std::vector<T>
-    d3.append(std::vector<int>(d3.column_num()));
+    d3.append(std::vector<double>(d3.column_num()));
     //concat double DataFrame object horizontally
     d3.concat_row(d3);
+    // change data
+    d3["f"][3] = 2;
     //print dataframe
     std::cout << d3;
     //write into csv file
