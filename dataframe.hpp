@@ -22,6 +22,7 @@
 #include <iostream>
 #include <exception>
 #include <sstream>
+#include <unordered_map>
 
 template <typename T = double>
 class DataFrame
@@ -114,11 +115,19 @@ class DataFrame
                 throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
             }
         }
+
+        friend std::ostream &operator<<(std::ostream &cout, Array & arr) {
+            for(const auto & item : *arr.array){
+                cout << item << ' ';
+            }
+            return cout;
+        }
     };
 
     typedef std::vector<Array *> Matrix;
     typedef std::vector<std::string> Column;
     typedef std::vector<std::string> StringVector;
+
 public:
     DataFrame(){
         width = 0;
@@ -129,6 +138,7 @@ public:
         width = dataframe.width;
         length = dataframe.length;
         column.insert(column.begin(),dataframe.column.begin(),dataframe.column.end());
+        index.insert(dataframe.index.begin(),dataframe.index.end());
         for (auto i = dataframe.matrix.begin(); i < dataframe.matrix.end(); ++i) {
             matrix.emplace_back(new Array(*i));
         }
@@ -145,8 +155,11 @@ public:
         if(!_column.empty()) {
             width = _column.size();
             column.clear();
-            for(auto item : _column){
+            index.clear();
+            matrix.clear();
+            for(const auto & item : _column){
                 column.emplace_back(item);
+                index.emplace(item,index.size());
                 matrix.emplace_back(new Array(0));
             }
             return true;
@@ -154,18 +167,14 @@ public:
     }
 
     bool contain(const std::string & col){
-        for(int i = 0;i<column.size();i++){
-            if(col==column[i]){
-                return true;
-            }
-        }
-        return false;
+        return index.find(col)!=index.end();
     }
 
     // insert one column
     bool insert(const std::string & col){
         ++ width;
         column.emplace_back(col);
+        index.emplace(col,index.size());
         matrix.emplace_back(new Array(length));
         return true;
     }
@@ -176,6 +185,7 @@ public:
             if(!contain(col)){
                 ++ width;
                 column.emplace_back(col);
+                index.emplace(col,index.size());
                 matrix.emplace_back(new Array(array));
             }else{
                 Array & row = this->operator[](col);
@@ -187,24 +197,23 @@ public:
 
     //remove one column from str
     bool remove(const std::string & col){
-        for(int i = 0;i<column.size();i++){
-            if(col==column[i]){
-                -- width;
-                column.erase(column.begin()+i);
-                delete *(matrix.begin()+i);
-                matrix.erase(matrix.begin()+i);
-                return true;
-            }
+        auto item = index.find(col);
+        if(item != index.end()){
+            -- width;
+            column.erase(column.begin()+item->second);
+            delete *(matrix.begin()+item->second);
+            matrix.erase(matrix.begin()+item->second);
+            index.erase(item);
+            return true;
         }
         return false;
     }
 
     //get one column data from column str
     Array & operator [](const std::string & col){
-        for(int i = 0;i<column.size();i++){
-            if(col==column[i]){
-                return *(matrix[i]);
-            }
+        auto item = index.find(col);
+        if(item != index.end()){
+            return *(matrix[item->second]);
         }
         insert(col);
         return *(matrix.back());
@@ -263,9 +272,10 @@ public:
     bool concat_row(DataFrame & dataframe){
         if(dataframe.length==length){
             width += dataframe.column_num();
-            std::string repeat = "";
+            std::string repeat;
             for (int i = 0; i < dataframe.width; ++i) {
                 repeat = contain(dataframe.column[i]) ? "_1" : "";
+                index.insert({dataframe.column[i] + repeat,index.size()});
                 column.emplace_back(dataframe.column[i] + repeat);
                 matrix.emplace_back(new Array(dataframe.matrix[i]));
             }
@@ -334,6 +344,8 @@ public:
 
     //print dataframe
     friend std::ostream &operator<<(std::ostream &cout, DataFrame &dataFrame) {
+        cout << "width : " << dataFrame.width << std::endl;
+        cout << "length : " << dataFrame.length << std::endl;
         for (int j = 0; j < dataFrame.width; ++j) {
             cout << dataFrame.column[j] << "\t";
         }
@@ -387,6 +399,7 @@ private:
     Matrix matrix;
     long long int width;
     long long int length;
+    std::unordered_map<std::string,unsigned long long int> index;
 };
 
 #endif // DATAFRAME_H
