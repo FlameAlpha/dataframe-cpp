@@ -10,7 +10,7 @@
  *           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * @details
  * @author   Flame
- * @date     03.13.2019
+ * @date     07.31.2020
 **/
 
 #ifndef DATAFRAME_H
@@ -204,6 +204,11 @@ public:
             delete *(matrix.begin()+item->second);
             matrix.erase(matrix.begin()+item->second);
             index.erase(item);
+            for(auto & index_item : index){
+                if(index_item.second > item->second){
+                    index_item.second--;
+                }
+            }
             return true;
         }
         return false;
@@ -271,14 +276,15 @@ public:
     //concat double DataFrame object horizontally
     bool concat_row(DataFrame & dataframe){
         if(dataframe.length==length){
-            width += dataframe.column_num();
             std::string repeat;
-            for (int i = 0; i < dataframe.width; ++i) {
-                repeat = contain(dataframe.column[i]) ? "_1" : "";
+            auto last_width = dataframe.width;
+            for (int i = 0; i < last_width; ++i) {
+                repeat = contain(dataframe.column[i]) ? "_r" : "";
                 index.insert({dataframe.column[i] + repeat,index.size()});
                 column.emplace_back(dataframe.column[i] + repeat);
                 matrix.emplace_back(new Array(dataframe.matrix[i]));
             }
+            width += dataframe.column_num();
             return true;
         }else return false;
     }
@@ -357,6 +363,13 @@ public:
             cout << '\n';
         }
         return cout;
+    }
+
+    void show_columns(){
+        for(const auto & item : index){
+            std::cout << item.first << ',' << item.second << std::endl;
+        }
+        return;
     }
 private:
     bool splite_line(const std::string & strLine, StringVector & stringVector, const char & delimiter) {
