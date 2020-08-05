@@ -10,7 +10,7 @@
  *           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * @details
  * @author   Flame
- * @date     07.31.2020
+ * @date     08.05.2020
 **/
 
 #ifndef DATAFRAME_H
@@ -203,12 +203,12 @@ public:
             column.erase(column.begin()+item->second);
             delete *(matrix.begin()+item->second);
             matrix.erase(matrix.begin()+item->second);
-            index.erase(item);
             for(auto & index_item : index){
                 if(index_item.second > item->second){
                     index_item.second--;
                 }
             }
+            index.erase(item);
             return true;
         }
         return false;
