@@ -15,15 +15,11 @@ dataframe class for c++ language
 ```cpp
 #include <iostream>
 #include <vector>
-#include <string>
 #include "dataframe.hpp"
 
 int main() {
-    DataFrame<double> d1;
-    DataFrame<double> d2;
-    //read from csv file
-    d1.read_csv("../test.txt",',');
-    d2.read_csv("../test.txt",',');
+    dataframe<double> d1("../test.txt");
+    dataframe<double> d2("../test.txt");
     //concat double DataFrame object vertically
     auto d3 = d1 + d2;
     // insert one column from std::vector<T>
