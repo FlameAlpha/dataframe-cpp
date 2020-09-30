@@ -10,7 +10,7 @@
  *           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * @details
  * @author   Flame
- * @date     09.28.2020
+ * @date     09.30.2020
 **/
 
 #ifndef DATAFRAME_H
@@ -27,34 +27,33 @@
 template <typename T = double>
 class dataframe
 {
-    class array
+public:
+    class column_array
     {
         typedef typename std::vector<T>::const_iterator iter;
         std::vector<T> * _array = nullptr;
     public:
-        explicit array(int n = 0){
+        explicit column_array(int n = 0){
             _array = new std::vector<T>(n);
         }
 
-        array (const array & __array){
-            _array = new std::vector<T>(__array.size());
-            if(__array.size() == _array->size()){
-                _array->clear();
-                _array->insert(_array->begin(), __array.begin(), __array.end());
-            }
+        column_array (const column_array & __array){
+            _array = new std::vector<T>(*__array._array);
         }
 
-        explicit array (const array * __array){
-            if(_array != nullptr)
-                delete _array;
-            _array = new std::vector<T>(__array->size());
-            if(__array->size()==_array->size()){
-                _array->clear();
-                _array->insert(_array->begin(),__array->begin(),__array->end());
-            }
+        column_array (const column_array && __array) noexcept {
+            _array = new std::vector<T>(std::move(*__array._array));
         }
 
-        ~array(){
+        explicit column_array (const std::vector<T> && __array){
+            _array = new std::vector<T>(__array);
+        }
+
+        explicit column_array (const std::vector<T> & __array){
+            _array = new std::vector<T>(__array);
+        }
+
+        ~column_array(){
             delete _array;
         }
 
@@ -68,11 +67,11 @@ class dataframe
             return _array->size();
         }
 
-        [[nodiscard]] typename std::vector<T>::const_iterator begin() const{
+        [[nodiscard]] iter begin() const{
             return _array->begin();
         }
 
-        [[nodiscard]] typename std::vector<T>::const_iterator end() const{
+        [[nodiscard]] iter end() const{
             return _array->end();
         }
 
@@ -80,20 +79,22 @@ class dataframe
             _array->emplace_back(item);
         }
 
-        array & operator = (const array & __array){
+        column_array & operator = (const column_array & __array){
             if(__array.size()==_array->size()){
                 _array->clear();
                 _array->insert(_array->begin(),__array.begin(),__array.end());
+                return *this;
             }
-            return *this;
+            throw (std::invalid_argument("The length of the two is not the same"));
         }
 
-        array & operator = (const std::vector<T> & __array){
+        column_array & operator = (const std::vector<T> & __array){
             if(__array.size()==_array->size()){
                 _array->clear();
                 _array->insert(_array->begin(),__array.begin(),__array.end());
+                return *this;
             }
-            return *this;
+            throw (std::invalid_argument("The length of the two is not the same"));
         }
 
         const T & operator [](unsigned long long int i) const {
@@ -116,7 +117,7 @@ class dataframe
             }
         }
 
-        friend std::ostream &operator<<(std::ostream &cout, array & arr) {
+        friend std::ostream &operator<<(std::ostream &cout, column_array & arr) {
             for(const auto & item : *arr._array){
                 cout << item << ' ';
             }
@@ -124,7 +125,107 @@ class dataframe
         }
     };
 
-    typedef std::vector<array *> Matrix;
+    class row_array
+    {
+        typedef typename std::vector<T *>::const_iterator iter;
+        std::vector<T *> * _array = nullptr;
+    public:
+        explicit row_array(int n = 0){
+            _array = new std::vector<T*>(n);
+        }
+
+        row_array (const row_array & __array){
+            _array = new std::vector<T*>(*__array._array);
+        }
+
+        row_array (const row_array && __array) noexcept {
+            _array = new std::vector<T*>(std::move(*__array._array));
+        }
+
+        explicit row_array (const std::vector<T *> && __array){
+            _array = new std::vector<T*>(__array);
+        }
+
+        explicit row_array (const std::vector<T *> & __array){
+            _array = new std::vector<T*>(__array);
+        }
+
+        ~row_array(){
+            delete _array;
+        }
+
+        void insert(iter position,iter start,iter end){
+            _array->insert(position,start,end);
+        }
+
+        [[nodiscard]] unsigned long long int size() const{
+            if(_array == nullptr)
+                return 0;
+            return _array->size();
+        }
+
+        [[nodiscard]] iter begin() const{
+            return _array->begin();
+        }
+
+        [[nodiscard]] iter end() const{
+            return _array->end();
+        }
+
+        row_array & operator = (const row_array & __array){
+            if(__array.size()==_array->size()){
+                for (int i = 0; i < __array.size(); ++i) {
+                    *(*_array)[i] = __array[i];
+                }
+                return *this;
+            }
+            throw (std::invalid_argument("The length of the two is not the same"));
+        }
+
+        row_array & operator = (const std::vector<T> & __array){
+            if(__array.size()==_array->size()){
+                for (int i = 0; i < __array.size(); ++i) {
+                    *(*_array)[i] = __array[i];
+                }
+                return *this;
+            }
+            throw (std::invalid_argument("The length of the two is not the same"));
+        }
+
+        void push_back(T * item){
+            _array->emplace_back(item);
+        }
+
+        const T & operator [](unsigned long long int i) const {
+            if(i < _array->size())
+                return *((*_array)[i]);
+            else{
+                std::stringstream ssTemp;
+                ssTemp << i;
+                throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
+            }
+        }
+
+        T & operator [](unsigned long long int i) {
+            if(i < _array->size())
+                return *((*_array)[i]);
+            else{
+                std::stringstream ssTemp;
+                ssTemp << i;
+                throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
+            }
+        }
+
+        friend std::ostream &operator<<(std::ostream &cout, row_array & arr) {
+            for(const auto & item : *arr._array){
+                cout << item << ' ';
+            }
+            return cout;
+        }
+    };
+
+private:
+    typedef std::vector<column_array *> Matrix;
     typedef std::vector<std::string> Column;
     typedef std::vector<std::string> StringVector;
 
@@ -144,18 +245,25 @@ public:
         column_paste(columns);
     }
 
-    dataframe(const dataframe & dataframe){
-        width = dataframe.width;
-        length = dataframe.length;
-
-        column.clear();
-        index.clear();
+    dataframe(const dataframe & dataframe):
+            width(dataframe.width),
+            length(dataframe.length),
+            column(dataframe.column),
+            index(dataframe.index){
         matrix.clear();
-
-        column.insert(column.begin(),dataframe.column.begin(),dataframe.column.end());
-        index.insert(dataframe.index.begin(),dataframe.index.end());
         for (auto i = dataframe.matrix.begin(); i < dataframe.matrix.end(); ++i) {
-            matrix.emplace_back(new array(*i));
+            matrix.emplace_back(new column_array(**i));
+        }
+    }
+
+    dataframe(const dataframe && dataframe) noexcept :
+        width(dataframe.width),
+        length(dataframe.length),
+        column(std::move(dataframe.column)),
+        index(std::move(dataframe.index)){
+        matrix.clear();
+        for (auto i = dataframe.matrix.begin(); i < dataframe.matrix.end(); ++i) {
+            matrix.emplace_back(new column_array(std::move(**i)));
         }
     }
 
@@ -175,7 +283,7 @@ public:
             for(const auto & item : _column){
                 column.emplace_back(item);
                 index.emplace(item,index.size());
-                matrix.emplace_back(new array(0));
+                matrix.emplace_back(new column_array(0));
             }
             return true;
         } else return false;
@@ -190,21 +298,81 @@ public:
         ++ width;
         column.emplace_back(col);
         index.emplace(col,index.size());
-        matrix.emplace_back(new array(length));
+        matrix.emplace_back(new column_array(length));
         return true;
     }
 
     // insert one column from std::vector<T>
-    bool insert(const std::string & col,const array & _array){
+    bool insert(const std::string & col,const column_array && _array){
         if(_array.size() == row_num()){
             if(!contain(col)){
                 ++ width;
                 column.emplace_back(col);
                 index.emplace(col,index.size());
-                matrix.emplace_back(new array(_array));
+                matrix.emplace_back(new column_array(_array));
             }else{
-                array & row = this->operator[](col);
-                row.insert(row.begin(),_array.begin(),_array.end());
+                column_array & line = this->operator[](col);
+                if(line.size() == _array.size()){
+                    line = _array;
+                }
+                else throw (std::invalid_argument("The length of the two is not the same"));
+            }
+            return true;
+        }else return false;
+    }
+
+    // insert one column from std::vector<T>
+    bool insert(const std::string & col,const column_array & _array){
+        if(_array.size() == row_num()){
+            if(!contain(col)){
+                ++ width;
+                column.emplace_back(col);
+                index.emplace(col,index.size());
+                matrix.emplace_back(new column_array(_array));
+            }else{
+                column_array & line = this->operator[](col);
+                if(line.size() == _array.size()){
+                    line = _array;
+                }
+                else throw (std::invalid_argument("The length of the two is not the same"));
+            }
+            return true;
+        }else return false;
+    }
+
+    // insert one column from std::vector<T>
+    bool insert(const std::string & col,const std::vector<T> && _array){
+        if(_array.size() == row_num()){
+            if(!contain(col)){
+                ++ width;
+                column.emplace_back(col);
+                index.emplace(col,index.size());
+                matrix.emplace_back(new column_array(_array));
+            }else{
+                column_array & line = this->operator[](col);
+                if(line.size() == _array.size()){
+                    line = _array;
+                }
+                else throw (std::invalid_argument("The length of the two is not the same"));
+            }
+            return true;
+        }else return false;
+    }
+
+    // insert one column from std::vector<T>
+    bool insert(const std::string & col,const std::vector<T> & _array){
+        if(_array.size() == row_num()){
+            if(!contain(col)){
+                ++ width;
+                column.emplace_back(col);
+                index.emplace(col,index.size());
+                matrix.emplace_back(new column_array(_array));
+            }else{
+                column_array & line = this->operator[](col);
+                if(line.size() == _array.size()){
+                    line = _array;
+                }
+                else throw (std::invalid_argument("The length of the two is not the same"));
             }
             return true;
         }else return false;
@@ -229,8 +397,38 @@ public:
         return false;
     }
 
+    //get one row data from index of row
+    row_array operator [](int i){
+        if(i < length){
+            row_array row_array;
+            for(auto & item : matrix){
+                row_array.push_back(&((*item)[i]));
+            }
+            return std::move(row_array);
+        }else {
+            std::stringstream ssTemp;
+            ssTemp << i;
+            throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
+        }
+    }
+
+    //get one row data from index of row
+    const row_array & operator [](int i) const{
+        if(i < length){
+            row_array row_array;
+            for(auto & item : matrix){
+                row_array.push_back(&((*item)[i]));
+            }
+            return std::move(row_array);
+        }else {
+            std::stringstream ssTemp;
+            ssTemp << i;
+            throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
+        }
+    }
+
     //get one column data from column str
-    array & operator [](const std::string & col){
+    column_array & operator [](const std::string & col){
         auto item = index.find(col);
         if(item != index.end()){
             return *(matrix[item->second]);
@@ -239,32 +437,14 @@ public:
         return *(matrix.back());
     }
 
-    //get one column data from index of column
-    array & operator [](const int & index){
-        if(index < matrix.size())
-            return *(matrix[index]);
-        std::stringstream ssTemp;
-        ssTemp << index;
-        throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
-    }
-
     //get one column data from column str
-    const array & operator [](const std::string & col) const{
+    const column_array & operator [](const std::string & col) const{
         auto item = index.find(col);
         if(item != index.end()){
             return *(matrix[item->second]);
         }
         insert(col);
         return *(matrix.back());
-    }
-
-    //get one column data from index of column
-    const array & operator [](const int & i) const{
-        if(i < matrix.size())
-            return *(matrix[i]);
-        std::stringstream ssTemp;
-        ssTemp << i;
-        throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
     }
 
     //append one row from std::vector<T>
@@ -273,6 +453,17 @@ public:
             length ++;
             for (int i = 0; i < _array.size(); ++i) {
                 matrix[i]->emplace_back(_array[i]);
+            }
+            return true;
+        }else return false;
+    }
+
+    //append one row from std::vector<T>
+    bool append(const std::vector<T> && _array){
+        if(_array.size() == width){
+            length ++;
+            for (int i = 0; i < _array.size(); ++i) {
+                matrix[i]->emplace_back(std::move(_array[i]));
             }
             return true;
         }else return false;
@@ -291,7 +482,7 @@ public:
         if(dataframe.width==width){
             length += dataframe.length;
             for (int i = 0; i < width; ++i) {
-                matrix[i]->insert(matrix[i]->end(),dataframe[i].begin(),dataframe[i].end());
+                matrix[i]->insert(matrix[i]->end(),dataframe.get_column(i).begin(),dataframe.get_column(i).end());
             }
             return true;
         }else return false;
@@ -306,7 +497,23 @@ public:
                 repeat = contain(dataframe.column[i]) ? "_r" : "";
                 index.insert({dataframe.column[i] + repeat,index.size()});
                 column.emplace_back(dataframe.column[i] + repeat);
-                matrix.emplace_back(new array(dataframe.matrix[i]));
+                matrix.emplace_back(new column_array(*dataframe.matrix[i]));
+            }
+            width += dataframe.column_num();
+            return true;
+        }else return false;
+    }
+
+    //concat double dataframe object horizontally
+    bool concat_row(const dataframe && dataframe){
+        if(dataframe.length==length){
+            std::string repeat;
+            auto last_width = dataframe.width;
+            for (int i = 0; i < last_width; ++i) {
+                repeat = contain(dataframe.column[i]) ? "_r" : "";
+                index.insert({dataframe.column[i] + repeat,index.size()});
+                column.emplace_back(dataframe.column[i] + repeat);
+                matrix.emplace_back(new column_array(std::move(*dataframe.matrix[i])));
             }
             width += dataframe.column_num();
             return true;
@@ -326,8 +533,7 @@ public:
             dataFrame.concat_line(dataframe1);
             dataFrame.concat_line(dataframe2);
             return std::move(dataFrame);
-        }
-        return std::move(dataframe(0));
+        } else throw (std::invalid_argument("The column length of the two is not the same"));
     }
 
     //read from csv file
@@ -395,10 +601,59 @@ public:
         }
     }
 
-    const std::vector<std::string> & get_columns(){
+    const std::vector<std::string> & get_column_str(){
         return column;
     }
+
 private:
+    //get one column data from index of column
+    const column_array & get_column (const int & i) const{
+        if(i < matrix.size())
+            return *(matrix[i]);
+        std::stringstream ssTemp;
+        ssTemp << i;
+        throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
+    }
+
+    //get one column data from index of column
+    column_array & get_column(const int & i){
+        if(i < matrix.size())
+            return *(matrix[i]);
+        std::stringstream ssTemp;
+        ssTemp << i;
+        throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
+    }
+
+    //get one row data from index of row
+    row_array get_row(int i){
+        if(i < length){
+            row_array row_array;
+            for(auto & item : matrix){
+                row_array.push_back(&((*item)[i]));
+            }
+            return std::move(row_array);
+        }else {
+            std::stringstream ssTemp;
+            ssTemp << i;
+            throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
+        }
+    }
+
+    //get one row data from index of row
+    const row_array & get_row(int i) const{
+        if(i < length){
+            row_array row_array;
+            for(auto & item : matrix){
+                row_array.push_back(&((*item)[i]));
+            }
+            return std::move(row_array);
+        }else {
+            std::stringstream ssTemp;
+            ssTemp << i;
+            throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
+        }
+    }
+
     bool splite_line(const std::string & strLine, StringVector & stringVector, const char & delimiter) {
         unsigned long long nBegin = 0;
         unsigned long long nEnd = 0;
