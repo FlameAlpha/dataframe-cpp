@@ -3,14 +3,16 @@
  * @class    dataframe
  * @brief    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  *           read from csv file
- *           write to csv file
- *           append one row from std::vector<T>
- *           concat & add double DataFrame object (horizontally & vertically)
- *           insert one column from std::vector<T> & remove column
+ *           write into csv file
+ *           append one row from std::vector & remove row
+ *           insert one column from std::vector & remove column
+ *           get a row of data by index of the row
+ *           get a column of data by string of the column
+ *           concat & add double dataFrame object (horizontally & vertically)
  *           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * @details
  * @author   Flame
- * @date     09.30.2020
+ * @date     10.01.2020
 **/
 
 #ifndef DATAFRAME_H
@@ -75,6 +77,9 @@ public:
             return _array->end();
         }
 
+        void erase(iter i){
+            _array->erase(i);
+        }
         void emplace_back(const T & item){
             _array->emplace_back(item);
         }
@@ -273,22 +278,7 @@ public:
         }
     }
 
-    //init the column
-    bool column_paste(const Column & _column){
-        if(!_column.empty()) {
-            width = _column.size();
-            column.clear();
-            index.clear();
-            matrix.clear();
-            for(const auto & item : _column){
-                column.emplace_back(item);
-                index.emplace(item,index.size());
-                matrix.emplace_back(new column_array(0));
-            }
-            return true;
-        } else return false;
-    }
-
+    // determine whether the column is included
     bool contain(const std::string & col){
         return index.find(col)!=index.end();
     }
@@ -395,6 +385,19 @@ public:
             return true;
         }
         return false;
+    }
+
+    //remove one row from index
+    bool remove(int i){
+        if(i < length){
+            for(auto & item : matrix){
+                item->erase(item->begin()+i);
+            }
+            --length;
+            return true;
+        }else {
+            return false;
+        }
     }
 
     //get one row data from index of row
@@ -536,32 +539,6 @@ public:
         } else throw (std::invalid_argument("The column length of the two is not the same"));
     }
 
-    //read from csv file
-    void read_csv(const std::string & filename, const char & delimiter = ',') {
-        bool convert = false;
-        std::ifstream Reader(filename.data());
-        if(!Reader){
-            throw (std::invalid_argument(filename + " is invalid!"));
-        }
-
-        std::string strLine;
-        StringVector vecValue;
-        if(getline(Reader, strLine)){
-            vecValue.clear();
-            if(splite_line(strLine, vecValue ,delimiter)) {
-                column_paste(vecValue);
-            }
-        }
-
-        while (getline(Reader, strLine)){
-            vecValue.clear();
-            if(splite_line(strLine, vecValue ,delimiter)) {
-                append_from_str(vecValue);
-            }
-        }
-        Reader.close();
-    }
-
     //write into csv file
     void to_csv(const std::string & filename, const char & delimiter = ',') const {
         std::ofstream cout = std::ofstream(filename.data(), std::ios::out | std::ios::trunc);
@@ -595,17 +572,61 @@ public:
         return cout;
     }
 
+    // get name vector of columns
+    const std::vector<std::string> & get_column_str(){
+        return column;
+    }
+
+private:
+    //init the column
+    bool column_paste(const Column & _column){
+        if(!_column.empty()) {
+            width = _column.size();
+            column.clear();
+            index.clear();
+            matrix.clear();
+            for(const auto & item : _column){
+                column.emplace_back(item);
+                index.emplace(item,index.size());
+                matrix.emplace_back(new column_array(0));
+            }
+            return true;
+        } else return false;
+    }
+
+    // print name of column
     void show_columns(){
         for(const auto & item : index){
             std::cout << item.first << ',' << item.second << std::endl;
         }
     }
 
-    const std::vector<std::string> & get_column_str(){
-        return column;
+    //read from csv file
+    void read_csv(const std::string & filename, const char & delimiter = ',') {
+        bool convert = false;
+        std::ifstream Reader(filename.data());
+        if(!Reader){
+            throw (std::invalid_argument(filename + " is invalid!"));
+        }
+
+        std::string strLine;
+        StringVector vecValue;
+        if(getline(Reader, strLine)){
+            vecValue.clear();
+            if(splite_line(strLine, vecValue ,delimiter)) {
+                column_paste(vecValue);
+            }
+        }
+
+        while (getline(Reader, strLine)){
+            vecValue.clear();
+            if(splite_line(strLine, vecValue ,delimiter)) {
+                append_from_str(vecValue);
+            }
+        }
+        Reader.close();
     }
 
-private:
     //get one column data from index of column
     const column_array & get_column (const int & i) const{
         if(i < matrix.size())
@@ -654,6 +675,7 @@ private:
         }
     }
 
+    // separate strings by delimiter
     bool splite_line(const std::string & strLine, StringVector & stringVector, const char & delimiter) {
         unsigned long long nBegin = 0;
         unsigned long long nEnd = 0;
@@ -675,6 +697,7 @@ private:
         return flag;
     }
 
+    // append data from string vector
     bool append_from_str(const StringVector & _array){
         if(_array.size() == column.size()){
             length ++;
