@@ -22,7 +22,7 @@ int main() {
     dataframe<double> d1;
 
     // recreate a dataframe object from csv file or another
-    d1.read_csv("../test"); // d1 = std::move(dataframe<double>("../test.txt"));
+    d1.read_csv("../test"); // d1 = std::move(dataframe<double>("../test"));
 
     // create a dataframe object from csv file
     dataframe<double> d2("../test");
