@@ -2,6 +2,7 @@
 dataframe class for c++ language
 - read from csv file
 - write into csv file
+- min max scaler and standard scaler for each column's data
 - append one row from std::vector<T> & remove row
 - insert one column from std::vector<T> & remove column
 - get a row of data  by index of the row 
@@ -9,7 +10,7 @@ dataframe class for c++ language
 - concat & add double dataFrame object (horizontally & vertically) 
 
 
-**Build requirements:** c++ 11 to 17
+**Build requirements:** c++17 or c++ latest
 
 ## Quick start
 
@@ -21,10 +22,10 @@ int main() {
     dataframe<double> d1;
 
     // recreate a dataframe object from csv file or another
-    d1.read_csv("../test.txt"); // d1 = std::move(dataframe<double>("../test.txt"));
+    d1.read_csv("../test"); // d1 = std::move(dataframe<double>("../test.txt"));
 
     // create a dataframe object from csv file
-    dataframe<double> d2("../test.txt");
+    dataframe<double> d2("../test");
 
     // concat double dataframe object vertically
     auto d3 = d1 + d2;
@@ -40,7 +41,7 @@ int main() {
 
     // append one row from std::vector<T>
     d3.append(std::vector<double>(d3.column_num()));
-
+    
     // change data in ith row
     d3[4] = {6, 7, 8, 9, 10};
 
@@ -59,8 +60,25 @@ int main() {
     // print dataframe
     std::cout << d3;
 
+    // min_max_scaler<double> scaler(d3); // min max scaler
+    standard_scaler<double> scaler(d3); // standard scaler
+
+    // save scaler into file
+    scaler.save_scaler("../scaler");
+
+    // load scaler from file
+    scaler.load_scaler("../scaler");
+
+    // transform dataset
+    scaler.transform(d3);
+
+    std::cout << "after scaler : " << std::endl << d3;
+
     // write into csv file
-    d3.to_csv("../final.txt", ',');
+    d3.to_csv("../final", ',');
+
+    // write into lib_svm file
+    d3.to_lib_svm_file("../final_svm");
     return 0;
 }
 ```
