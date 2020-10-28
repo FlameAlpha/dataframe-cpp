@@ -3,7 +3,8 @@
  * @class    dataframe
  * @brief    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  *           read from csv file
- *           write into csv file
+ *           write into csv file and lib_svm file
+ *           min max scaler and standard scaler for each column's data
  *           append one row from std::vector & remove row
  *           insert one column from std::vector & remove column
  *           get a row of data by index of the row
@@ -12,25 +13,152 @@
  *           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * @details
  * @author   Flame
- * @date     10.01.2020
+ * @date     10.28.2020
 **/
 
 #ifndef DATAFRAME_H
 #define DATAFRAME_H
 
+#include <cmath>
 #include <vector>
 #include <string>
+#include <numeric>
+#include <iomanip>
+#include <sstream>
 #include <fstream>
 #include <iostream>
 #include <exception>
-#include <sstream>
+#include <algorithm>
 #include <unordered_map>
+
+template<typename T1, typename T2>
+class is_same_type {
+public:
+    explicit operator bool() {
+        return false;
+    }
+};
+
+template<typename T1>
+class is_same_type<T1, T1> {
+public:
+    explicit operator bool() {
+        return true;
+    }
+};
+
+template<typename T>
+class dataframe;
+
+template<typename T = double>
+class scaler {
+    T transform(const T &value, std::pair<T, T> param) {
+        return (value - param.first) / param.second;
+    }
+
+public:
+    std::vector<std::pair<T, T>> scaler_array;
+
+    explicit scaler(const std::vector<std::pair<T, T>> &_scaler_array = {}) : scaler_array(_scaler_array) {}
+
+    explicit scaler(const std::string &filename) {
+        load_scaler(filename);
+    }
+
+    [[maybe_unused]] void print_scaler_array() const {
+        std::cout.setf(std::ios::internal, std::ios::floatfield);
+        for (unsigned long long int i = 0; i < scaler_array.size() - 1; ++i) {
+            std::cout << "{" << scaler_array[i].first << "," << scaler_array[i].second << "},";
+        }
+        std::cout << "{" << scaler_array.back().first << "," << scaler_array.back().second << "}";
+    }
+
+    void transform(dataframe<T> &dataset) {
+        for (unsigned long long int i = 0; i < dataset.column_num(); ++i) {
+            for (unsigned long long int j = 0; j < dataset.row_num(); ++j) {
+                dataset(i)[j] = transform(dataset(i)[j], scaler_array[i]);
+            }
+        }
+        dataset.set_scaler_flag(true);
+    }
+
+    void transform(std::vector<T> &data) {
+        for (unsigned long long int i = 0; i < data.size(); ++i) {
+            data[i] = transform(data[i], scaler_array[i]);
+        }
+    }
+
+    void save_scaler(const std::string &filename = "../scaler") {
+        dataframe<T> dataset(std::vector<std::string>{"first", "second"});
+        for (const auto &item : scaler_array)
+            dataset.append({item.first, item.second});
+        dataset.to_csv(filename, ',');
+    }
+
+    void load_scaler(const std::string &filename) {
+        dataframe<T> dataset(filename);
+        scaler_array.clear();
+        for (unsigned long long int i = 0; i < dataset.row_num(); ++i) {
+            scaler_array.push_back({dataset(0)[i], dataset(1)[i]});
+        }
+    }
+};
+
+template<typename T = double>
+class min_max_scaler : public scaler<T> {
+public:
+    explicit min_max_scaler(const dataframe<T> &dataset) {
+        scaler<T>::scaler_array.clear();
+        for (const auto &array : dataset) {
+            T min_value = *array->begin();
+            T max_value = *array->begin();
+            for (const auto &item : *array) {
+                if (item < min_value) {
+                    min_value = item;
+                } else if (item > max_value) {
+                    max_value = item;
+                }
+            }
+            scaler<T>::scaler_array.emplace_back(std::pair<T, T>{min_value, max_value - min_value});
+        }
+    }
+
+    explicit min_max_scaler(const std::vector<std::pair<T, T>> &_scaler_array) : scaler<T>(_scaler_array) {}
+
+    explicit min_max_scaler(const std::string &filename) : scaler<T>(filename) {}
+};
+
+template<typename T = double>
+class standard_scaler : public scaler<T> {
+public:
+    explicit standard_scaler(const dataframe<T> &dataset) {
+        scaler<T>::scaler_array.clear();
+        for (const auto &array : dataset) {
+            T sum = 0;
+            for (const auto &item : *array) {
+                sum += item;
+            }
+            T mean = sum / array->size();
+            sum = 0;
+            for (const auto &item : *array) {
+                sum += std::pow((item - mean), 2);
+            }
+            sum /= array->size() - 1;
+            scaler<T>::scaler_array.emplace_back(std::pair<T, T>{mean, std::sqrt(sum)});
+        }
+    }
+
+    explicit standard_scaler(const std::vector<std::pair<T, T>> &_scaler_array) : scaler<T>(_scaler_array) {}
+
+    explicit standard_scaler(const std::string &filename) : scaler<T>(filename) {}
+};
 
 template<typename T = double>
 class dataframe {
 public:
     class column_array {
-        typedef typename std::vector<T>::const_iterator iter;
+        typedef typename std::vector<T>::const_iterator const_iter;
+        typedef typename std::vector<T>::iterator iter;
         std::vector<T> *array = nullptr;
     public:
         explicit column_array(int n = 0) {
@@ -57,7 +185,7 @@ public:
             delete array;
         }
 
-        void insert(iter position, iter start, iter end) {
+        void insert(const_iter position, const_iter start, const_iter end) {
             array->insert(position, start, end);
         }
 
@@ -67,15 +195,23 @@ public:
             return array->size();
         }
 
-        [[nodiscard]] iter begin() const {
+        [[nodiscard]] const_iter begin() const {
             return array->begin();
         }
 
-        [[nodiscard]] iter end() const {
+        [[nodiscard]] const_iter end() const {
             return array->end();
         }
 
-        void erase(iter i) {
+        [[nodiscard]] iter begin() {
+            return array->begin();
+        }
+
+        [[nodiscard]] iter end() {
+            return array->end();
+        }
+
+        void erase(const_iter i) {
             array->erase(i);
         }
 
@@ -84,6 +220,8 @@ public:
         }
 
         column_array &operator=(const column_array &_array) {
+            if(this == &_array)
+                return *this;
             if (_array.size() == array->size()) {
                 array->clear();
                 array->insert(array->begin(), _array.begin(), _array.end());
@@ -109,7 +247,11 @@ public:
             throw (std::invalid_argument("The length of the two is not the same"));
         }
 
-        const std::vector<T> & get_std_vector(){
+        const std::vector<T> &get_std_vector() const {
+            return *array;
+        }
+
+        std::vector<T> &get_std_vector() {
             return *array;
         }
 
@@ -142,7 +284,8 @@ public:
     };
 
     class row_array {
-        typedef typename std::vector<T *>::const_iterator iter;
+        typedef typename std::vector<T *>::const_iterator const_iter;
+        typedef typename std::vector<T *>::iterator iter;
         std::vector<T *> *array = nullptr;
     public:
         explicit row_array(int n = 0) {
@@ -169,7 +312,7 @@ public:
             delete array;
         }
 
-        void insert(iter position, iter start, iter end) {
+        void insert(const_iter position, const_iter start, const_iter end) {
             array->insert(position, start, end);
         }
 
@@ -179,15 +322,25 @@ public:
             return array->size();
         }
 
-        [[nodiscard]] iter begin() const {
+        [[nodiscard]] const_iter begin() const {
             return array->begin();
         }
 
-        [[nodiscard]] iter end() const {
+        [[nodiscard]] const_iter end() const {
+            return array->end();
+        }
+
+        [[nodiscard]] iter begin() {
+            return array->begin();
+        }
+
+        [[nodiscard]] iter end() {
             return array->end();
         }
 
         row_array &operator=(const row_array &_array) {
+            if(this == &_array)
+                return *this;
             if (_array.size() == array->size()) {
                 for (int i = 0; i < _array.size(); ++i) {
                     *(*array)[i] = _array[i];
@@ -215,6 +368,22 @@ public:
                 return *this;
             }
             throw (std::invalid_argument("The length of the two is not the same"));
+        }
+
+        const std::vector<T *> &get_point_vector() const {
+            return *array;
+        }
+
+        std::vector<T *> &get_point_vector() {
+            return *array;
+        }
+
+        std::vector<T> get_std_vector() const {
+            std::vector<T> result;
+            for (const auto & item : *array){
+                result.push_back(*item);
+            }
+            return std::move(result);
         }
 
         void push_back(T *item) {
@@ -251,7 +420,9 @@ public:
 
 private:
     typedef std::vector<std::string> string_vector;
-
+    typedef typename std::vector<column_array *>::const_iterator dataframe_const_iter;
+    typedef typename std::vector<column_array *>::iterator dataframe_iter;
+    bool is_scaler = false;
 public:
     // constructed by file name
     explicit dataframe(const std::string &filename, const char &delimiter = ',') : width(0), length(0) {
@@ -259,9 +430,9 @@ public:
     }
 
     // constructed by width and length
-    explicit dataframe(long long int _width = 0, long long int _length = 0) : width(_width), length(_length) {
+    explicit dataframe(unsigned long long int _width = 0, unsigned long long int _length = 0) : width(_width), length(_length) {
         string_vector temp;
-        for (int i = 0; i < width; i++)
+        for (unsigned long long int i = 0; i < _width; i++)
             temp.emplace_back(std::to_string(i));
         column_paste(temp);
     }
@@ -284,7 +455,7 @@ public:
     }
 
     // move constructor
-    dataframe(dataframe &&dataframe) noexcept :
+    dataframe(dataframe &&dataframe) noexcept:
             width(dataframe.width),
             length(dataframe.length),
             column(std::move(dataframe.column)),
@@ -299,6 +470,22 @@ public:
         for (auto i = 0; i < matrix.size(); ++i) {
             delete matrix[i];
         }
+    }
+
+    dataframe_iter begin() {
+        return matrix.begin();
+    }
+
+    dataframe_const_iter begin() const {
+        return matrix.begin();
+    }
+
+    dataframe_iter end() {
+        return matrix.end();
+    }
+
+    dataframe_const_iter end() const {
+        return matrix.end();
     }
 
     // determine whether the column is included
@@ -407,7 +594,7 @@ public:
     }
 
     //remove one row from index
-    bool remove(int i) {
+    bool remove(unsigned long long int i) {
         if (i < length) {
             for (auto &item : matrix) {
                 item->erase(item->begin() + i);
@@ -420,7 +607,7 @@ public:
     }
 
     //get one row data from index of row
-    row_array operator[](int i) {
+    row_array operator[](unsigned long long int i) {
         if (i < length) {
             row_array row_array;
             for (auto &item : matrix) {
@@ -435,7 +622,7 @@ public:
     }
 
     //get one row data from index of row
-    const row_array &operator[](int i) const {
+    const row_array &operator[](unsigned long long int i) const {
         if (i < length) {
             row_array row_array;
             for (auto &item : matrix) {
@@ -469,11 +656,29 @@ public:
         return *(matrix.back());
     }
 
+    //get one column data from index of column
+    const column_array &operator()(unsigned long long int i) const {
+        if (i < matrix.size())
+            return *(matrix[i]);
+        std::stringstream ssTemp;
+        ssTemp << i;
+        throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
+    }
+
+    //get one column data from index of column
+    column_array &operator()(unsigned long long int i) {
+        if (i < matrix.size())
+            return *(matrix[i]);
+        std::stringstream ssTemp;
+        ssTemp << i;
+        throw (std::out_of_range("the index \'" + ssTemp.str() + "\' is out of range!"));
+    }
+
     //append one row from std::vector<T>
     bool append(const std::vector<T> &array) {
         if (array.size() == width) {
             length++;
-            for (int i = 0; i < array.size(); ++i) {
+            for (unsigned long long int i = 0; i < array.size(); ++i) {
                 matrix[i]->emplace_back(array[i]);
             }
             return true;
@@ -484,18 +689,18 @@ public:
     bool append(std::vector<T> &&array) {
         if (array.size() == width) {
             length++;
-            for (int i = 0; i < array.size(); ++i) {
+            for (unsigned long long int i = 0; i < array.size(); ++i) {
                 matrix[i]->emplace_back(std::move(array[i]));
             }
             return true;
         } else return false;
     }
 
-    [[nodiscard]] const long long int &column_num() const {
+    [[nodiscard]] const unsigned long long int &column_num() const {
         return width;
     }
 
-    [[nodiscard]] const long long int &row_num() const {
+    [[nodiscard]] const unsigned long long int &row_num() const {
         return length;
     }
 
@@ -503,7 +708,7 @@ public:
     bool concat_line(const dataframe &dataframe) {
         if (dataframe.width == width) {
             length += dataframe.length;
-            for (int i = 0; i < width; ++i) {
+            for (unsigned long long int i = 0; i < width; ++i) {
                 matrix[i]->insert(matrix[i]->end(), dataframe.get_column(i).begin(), dataframe.get_column(i).end());
             }
             return true;
@@ -515,7 +720,7 @@ public:
         if (dataframe.length == length) {
             std::string repeat;
             auto last_width = dataframe.width;
-            for (int i = 0; i < last_width; ++i) {
+            for (unsigned long long int i = 0; i < last_width; ++i) {
                 repeat = contain(dataframe.column[i]) ? "_r" : "";
                 index.insert({dataframe.column[i] + repeat, index.size()});
                 column.emplace_back(dataframe.column[i] + repeat);
@@ -531,7 +736,7 @@ public:
         if (dataframe.length == length) {
             std::string repeat;
             auto last_width = dataframe.width;
-            for (int i = 0; i < last_width; ++i) {
+            for (unsigned long long int i = 0; i < last_width; ++i) {
                 repeat = contain(dataframe.column[i]) ? "_r" : "";
                 index.insert({dataframe.column[i] + repeat, index.size()});
                 column.emplace_back(dataframe.column[i] + repeat);
@@ -544,7 +749,7 @@ public:
 
     // is empty or not
     bool empty() const {
-        return width == 0;
+        return width == 0 || length == 0;
     }
 
     //concat double dataframe object vertically
@@ -560,6 +765,8 @@ public:
 
     // move by equal sign
     dataframe &operator=(dataframe &&dataframe) noexcept {
+        if(this == &dataframe)
+            return *this;
         clear();
         width = dataframe.width;
         length = dataframe.length;
@@ -574,6 +781,8 @@ public:
 
     // copy by equal sign
     dataframe &operator=(const dataframe &dataframe) {
+        if(this == &dataframe)
+            return *this;
         clear();
         width = dataframe.width;
         length = dataframe.length;
@@ -619,7 +828,7 @@ public:
             cout << *item << delimiter;
         }
         cout << column.back() << '\n';
-        for (int i = 0; i < row_num(); ++i) {
+        for (unsigned long long int i = 0; i < row_num(); ++i) {
             for (auto array = matrix.begin(); array < matrix.end() - 1; ++array) {
                 cout << (**array)[i] << delimiter;
             }
@@ -628,29 +837,59 @@ public:
         cout.close();
     }
 
+    //write into lib_svm file
+    void to_lib_svm_file(const std::string &filename) const {
+        std::ofstream cout = std::ofstream(filename.data(), std::ios::out | std::ios::trunc);
+        for (unsigned long long int i = 0; i < row_num(); ++i) {
+            cout << "+1 ";
+            unsigned long long int j = 0;
+            for (auto array = matrix.begin(); array < matrix.end(); ++array) {
+                cout << ++j << ":" << (**array)[i] << " ";
+            }
+            cout << std::endl;
+        }
+        cout.close();
+    }
+
     //print dataframe
     friend std::ostream &operator<<(std::ostream &cout, const dataframe &dataframe) {
         cout << "width : " << dataframe.width << std::endl;
         cout << "length : " << dataframe.length << std::endl;
-        for (int j = 0; j < dataframe.width; ++j) {
-            cout << dataframe.column[j] << "\t";
+        cout.setf(std::ios::fixed, std::ios::floatfield);
+        bool is_float = is_same_type<double, T>() || is_same_type<float, T>();
+        std::string separator = "\t";
+        for (unsigned long long int j = 0; j < dataframe.width; ++j) {
+            cout << dataframe.column[j] << separator;
         }
-        cout << '\n';
-        for (int i = 0; i < dataframe.length; ++i) {
-            for (int j = 0; j < dataframe.width; ++j) {
-                cout << (*dataframe.matrix[j])[i] << "\t";
+        cout << std::endl;
+        for (unsigned long long int i = 0; i < dataframe.length; ++i) {
+            for (unsigned long long int j = 0; j < dataframe.width; ++j) {
+                if (is_float && std::abs((*dataframe.matrix[j])[i] - int((*dataframe.matrix[j])[i])) > 1e-3)
+                    cout << std::setprecision(3) << (*dataframe.matrix[j])[i] << separator;
+                else cout << std::setprecision(0) << (*dataframe.matrix[j])[i] << separator;
             }
-            cout << '\n';
+            cout << std::endl;
         }
         return cout;
     }
 
-    // get name vector of columns
-    const std::vector<std::string> &get_column_str() {
+    // get string vector of columns
+    const std::vector<std::string> &get_column_str() const {
         return column;
     }
 
+    void set_scaler_flag(bool flag){
+        is_scaler = flag;
+    }
+
+    bool get_scaler_flag(){
+        return is_scaler;
+    }
 private:
+    const std::vector<column_array *> &get_matrix() const {
+        return matrix;
+    }
+
     // clear all data, generate an empty dataframe
     void clear() {
         length = 0;
@@ -687,7 +926,7 @@ private:
     }
 
     //get one column data from index of column
-    const column_array &get_column(const int &i) const {
+    const column_array &get_column(unsigned long long int i) const {
         if (i < matrix.size())
             return *(matrix[i]);
         std::stringstream ssTemp;
@@ -696,7 +935,7 @@ private:
     }
 
     //get one column data from index of column
-    column_array &get_column(const int &i) {
+    column_array &get_column(unsigned long long int i) {
         if (i < matrix.size())
             return *(matrix[i]);
         std::stringstream ssTemp;
@@ -705,7 +944,7 @@ private:
     }
 
     //get one row data from index of row
-    row_array get_row(int i) {
+    row_array get_row(unsigned long long int i) {
         if (i < length) {
             row_array row_array;
             for (auto &item : matrix) {
@@ -720,7 +959,7 @@ private:
     }
 
     //get one row data from index of row
-    const row_array &get_row(int i) const {
+    const row_array &get_row(unsigned long long int i) const {
         if (i < length) {
             row_array row_array;
             for (auto &item : matrix) {
@@ -737,7 +976,7 @@ private:
     // separate strings by delimiter
     bool splite_line(const std::string &str_line, string_vector &value_str_vector, const char &delimiter) {
         unsigned long long begin_iter = 0;
-        unsigned long long end_iter = 0;
+        unsigned long long end_iter;
         bool flag = false;
         std::string str_temp;
         while ((end_iter = str_line.find_first_of(delimiter, begin_iter)) != std::string::npos) {
@@ -759,7 +998,7 @@ private:
             length++;
             std::stringstream stream;
             T item;
-            for (unsigned int i = 0; i < value_str_vector.size(); ++i) {
+            for (unsigned long long int i = 0; i < value_str_vector.size(); ++i) {
                 stream.clear();
                 stream << value_str_vector[i];
                 stream >> item;
@@ -771,9 +1010,24 @@ private:
 
     std::vector<std::string> column;
     std::vector<column_array *> matrix;
-    long long int width;
-    long long int length;
+    unsigned long long int width;
+    unsigned long long int length;
     std::unordered_map<std::string, unsigned long long int> index;
 };
+
+template<typename T = double>
+void remove_useless_columns(const std::vector<std::string> &filenames, const std::vector<std::string> &contents) {
+    for (const auto &filename : filenames) {
+        dataframe<T> dataset(filename);
+        auto columns = dataset.get_column_str();
+        for (const auto &column : columns)
+            for (const auto &content : contents)
+                if (column.find(content) != -1) {
+                    dataset.remove(column);
+                    continue;
+                }
+        dataset.to_csv(filename);
+    }
+}
 
 #endif // DATAFRAME_H
