@@ -13,7 +13,7 @@
  *           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * @details
  * @author   Flame
- * @date     10.28.2020
+ * @date     11.24.2020
 **/
 
 #ifndef DATAFRAME_H
@@ -82,10 +82,23 @@ public:
         dataset.set_scaler_flag(true);
     }
 
+    dataframe<T> transform_copy(const dataframe<T> &dataset) {
+        dataframe<T> dataset_copy(dataset);
+        transform(dataset_copy);
+        dataset_copy.set_scaler_flag(true);
+        return std::move(dataset_copy);
+    }
+
     void transform(std::vector<T> &data) {
         for (unsigned long long int i = 0; i < data.size(); ++i) {
             data[i] = transform(data[i], scaler_array[i]);
         }
+    }
+
+    std::vector<T> transform_copy(const std::vector<T> &data) {
+        std::vector<T> data_copy(data);
+        transform(data_copy);
+        return std::move(data_copy);
     }
 
     void save_scaler(const std::string &filename = "../scaler") {
@@ -380,10 +393,12 @@ public:
 
         std::vector<T> get_std_vector() const {
             std::vector<T> result;
-            for (const auto & item : *array){
+            if(array == nullptr)
+                throw (std::invalid_argument("This row array is invalid!"));
+            for (T * item : *array){
                 result.push_back(*item);
             }
-            return std::move(result);
+            return result;
         }
 
         void push_back(T *item) {
@@ -622,7 +637,7 @@ public:
     }
 
     //get one row data from index of row
-    const row_array &operator[](unsigned long long int i) const {
+    const row_array operator[](unsigned long long int i) const {
         if (i < length) {
             row_array row_array;
             for (auto &item : matrix) {
@@ -905,6 +920,7 @@ private:
     //init the column
     bool column_paste(const string_vector &_column) {
         if (!_column.empty()) {
+            length = 0;
             width = _column.size();
             column.clear();
             index.clear();
