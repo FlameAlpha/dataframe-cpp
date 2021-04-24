@@ -47,125 +47,6 @@ public:
     }
 };
 
-template<typename T>
-class dataframe;
-
-template<typename T = double>
-class scaler {
-    T transform(const T &value, std::pair<T, T> param) {
-        return (value - param.first) / param.second;
-    }
-
-public:
-    std::vector<std::pair<T, T>> scaler_array;
-
-    explicit scaler(const std::vector<std::pair<T, T>> &_scaler_array = {}) : scaler_array(_scaler_array) {}
-
-    explicit scaler(const std::string &filename) {
-        load_scaler(filename);
-    }
-
-    [[maybe_unused]] void print_scaler_array() const {
-        std::cout.setf(std::ios::internal, std::ios::floatfield);
-        for (unsigned long long int i = 0; i < scaler_array.size() - 1; ++i) {
-            std::cout << "{" << scaler_array[i].first << "," << scaler_array[i].second << "},";
-        }
-        std::cout << "{" << scaler_array.back().first << "," << scaler_array.back().second << "}";
-    }
-
-    void transform(dataframe<T> &dataset) {
-        for (unsigned long long int i = 0; i < dataset.column_num(); ++i) {
-            for (unsigned long long int j = 0; j < dataset.row_num(); ++j) {
-                dataset(i)[j] = transform(dataset(i)[j], scaler_array[i]);
-            }
-        }
-        dataset.set_scaler_flag(true);
-    }
-
-    dataframe<T> transform_copy(const dataframe<T> &dataset) {
-        dataframe<T> dataset_copy(dataset);
-        transform(dataset_copy);
-        dataset_copy.set_scaler_flag(true);
-        return std::move(dataset_copy);
-    }
-
-    void transform(std::vector<T> &data) {
-        for (unsigned long long int i = 0; i < data.size(); ++i) {
-            data[i] = transform(data[i], scaler_array[i]);
-        }
-    }
-
-    std::vector<T> transform_copy(const std::vector<T> &data) {
-        std::vector<T> data_copy(data);
-        transform(data_copy);
-        return std::move(data_copy);
-    }
-
-    void save_scaler(const std::string &filename = "../scaler") {
-        dataframe<T> dataset(std::vector<std::string>{"first", "second"});
-        for (const auto &item : scaler_array)
-            dataset.append({item.first, item.second});
-        dataset.to_csv(filename, ',');
-    }
-
-    void load_scaler(const std::string &filename) {
-        dataframe<T> dataset(filename);
-        scaler_array.clear();
-        for (unsigned long long int i = 0; i < dataset.row_num(); ++i) {
-            scaler_array.push_back({dataset(0)[i], dataset(1)[i]});
-        }
-    }
-};
-
-template<typename T = double>
-class min_max_scaler : public scaler<T> {
-public:
-    explicit min_max_scaler(const dataframe<T> &dataset) {
-        scaler<T>::scaler_array.clear();
-        for (const auto &array : dataset) {
-            T min_value = *array->begin();
-            T max_value = *array->begin();
-            for (const auto &item : *array) {
-                if (item < min_value) {
-                    min_value = item;
-                } else if (item > max_value) {
-                    max_value = item;
-                }
-            }
-            scaler<T>::scaler_array.emplace_back(std::pair<T, T>{min_value, max_value - min_value});
-        }
-    }
-
-    explicit min_max_scaler(const std::vector<std::pair<T, T>> &_scaler_array) : scaler<T>(_scaler_array) {}
-
-    explicit min_max_scaler(const std::string &filename) : scaler<T>(filename) {}
-};
-
-template<typename T = double>
-class standard_scaler : public scaler<T> {
-public:
-    explicit standard_scaler(const dataframe<T> &dataset) {
-        scaler<T>::scaler_array.clear();
-        for (const auto &array : dataset) {
-            T sum = 0;
-            for (const auto &item : *array) {
-                sum += item;
-            }
-            T mean = sum / array->size();
-            sum = 0;
-            for (const auto &item : *array) {
-                sum += std::pow((item - mean), 2);
-            }
-            sum /= array->size() - 1;
-            scaler<T>::scaler_array.emplace_back(std::pair<T, T>{mean, std::sqrt(sum)});
-        }
-    }
-
-    explicit standard_scaler(const std::vector<std::pair<T, T>> &_scaler_array) : scaler<T>(_scaler_array) {}
-
-    explicit standard_scaler(const std::string &filename) : scaler<T>(filename) {}
-};
-
 template<typename T = double>
 class dataframe {
 public:
@@ -260,11 +141,11 @@ public:
             throw (std::invalid_argument("The length of the two is not the same"));
         }
 
-        const std::vector<T> &get_std_vector() const {
+        [[nodiscard]] const std::vector<T> &get_std_vector() const {
             return *array;
         }
 
-        std::vector<T> &get_std_vector() {
+        [[maybe_unused]] std::vector<T> &get_std_vector() {
             return *array;
         }
 
@@ -383,15 +264,15 @@ public:
             throw (std::invalid_argument("The length of the two is not the same"));
         }
 
-        const std::vector<T *> &get_point_vector() const {
+        [[maybe_unused]] const std::vector<T *> &get_point_vector() const {
             return *array;
         }
 
-        std::vector<T *> &get_point_vector() {
+        [[maybe_unused]] std::vector<T *> &get_point_vector() {
             return *array;
         }
 
-        std::vector<T> get_std_vector() const {
+        [[maybe_unused]] std::vector<T> get_std_vector() const {
             std::vector<T> result;
             if(array == nullptr)
                 throw (std::invalid_argument("This row array is invalid!"));
@@ -637,7 +518,7 @@ public:
     }
 
     //get one row data from index of row
-    const row_array operator[](unsigned long long int i) const {
+    row_array operator[](unsigned long long int i) const {
         if (i < length) {
             row_array row_array;
             for (auto &item : matrix) {
@@ -724,7 +605,7 @@ public:
         if (dataframe.width == width) {
             length += dataframe.length;
             for (unsigned long long int i = 0; i < width; ++i) {
-                matrix[i]->insert(matrix[i]->end(), dataframe.get_column(i).begin(), dataframe.get_column(i).end());
+                matrix[i]->insert(matrix[i]->end(), dataframe(i).begin(), dataframe(i).end());
             }
             return true;
         } else return false;
@@ -893,11 +774,11 @@ public:
         return column;
     }
 
-    void set_scaler_flag(bool flag){
+    [[maybe_unused]] void set_scaler_flag(bool flag){
         is_scaler = flag;
     }
 
-    bool get_scaler_flag(){
+    [[maybe_unused]] bool get_scaler_flag(){
         return is_scaler;
     }
 private:
@@ -942,7 +823,7 @@ private:
     }
 
     //get one column data from index of column
-    const column_array &get_column(unsigned long long int i) const {
+    [[maybe_unused]] const column_array &get_column(unsigned long long int i) const {
         if (i < matrix.size())
             return *(matrix[i]);
         std::stringstream ssTemp;
@@ -951,7 +832,7 @@ private:
     }
 
     //get one column data from index of column
-    column_array &get_column(unsigned long long int i) {
+    [[maybe_unused]] column_array &get_column(unsigned long long int i) {
         if (i < matrix.size())
             return *(matrix[i]);
         std::stringstream ssTemp;
@@ -960,7 +841,7 @@ private:
     }
 
     //get one row data from index of row
-    row_array get_row(unsigned long long int i) {
+    [[maybe_unused]] row_array get_row(unsigned long long int i) {
         if (i < length) {
             row_array row_array;
             for (auto &item : matrix) {
@@ -975,7 +856,7 @@ private:
     }
 
     //get one row data from index of row
-    const row_array &get_row(unsigned long long int i) const {
+    [[maybe_unused]] const row_array &get_row(unsigned long long int i) const {
         if (i < length) {
             row_array row_array;
             for (auto &item : matrix) {
@@ -1032,7 +913,7 @@ private:
 };
 
 template<typename T = double>
-void remove_useless_columns(const std::vector<std::string> &filenames, const std::vector<std::string> &contents) {
+[[maybe_unused]] void remove_useless_columns(const std::vector<std::string> &filenames, const std::vector<std::string> &contents) {
     for (const auto &filename : filenames) {
         dataframe<T> dataset(filename);
         auto columns = dataset.get_column_str();
@@ -1045,5 +926,139 @@ void remove_useless_columns(const std::vector<std::string> &filenames, const std
         dataset.to_csv(filename);
     }
 }
+
+template<typename T = double>
+class scaler {
+    double transform(const T &value, std::pair<double, double> param) {
+        return (value - param.first) / param.second;
+    }
+
+public:
+    std::vector<std::pair<double, double>> scaler_array;
+
+    explicit scaler() : scaler_array({}) {}
+
+    explicit scaler(std::vector<std::pair<double, double>> _scaler_array) : scaler_array(
+            std::move(_scaler_array)) {}
+
+    explicit scaler(std::vector<std::pair<double, double>> &&_scaler_array) : scaler_array(
+            std::move(_scaler_array)) {}
+
+    explicit scaler(const std::string &filename) {
+        load_scaler(filename);
+    }
+
+    [[maybe_unused]] void print_scaler_array() const {
+        std::cout.setf(std::ios::internal, std::ios::floatfield);
+        for (unsigned long long int i = 0; i < scaler_array.size() - 1; ++i) {
+            std::cout << "{" << scaler_array[i].first << "," << scaler_array[i].second << "},";
+        }
+        std::cout << "{" << scaler_array.back().first << "," << scaler_array.back().second << "}";
+    }
+
+    void transform(dataframe<T> &dataset) {
+        for (unsigned long long int i = 0; i < dataset.column_num(); ++i) {
+            for (unsigned long long int j = 0; j < dataset.row_num(); ++j) {
+                dataset(i)[j] = transform(dataset(i)[j], scaler_array[i]);
+            }
+        }
+        dataset.set_scaler_flag(true);
+    }
+
+    dataframe<T> transform_copy(const dataframe<T> &dataset) {
+        dataframe<T> dataset_copy(dataset);
+        transform(dataset_copy);
+        dataset_copy.set_scaler_flag(true);
+        return std::move(dataset_copy);
+    }
+
+    void transform(std::vector<T> &data) {
+        for (unsigned long long int i = 0; i < data.size(); ++i) {
+            data[i] = transform(data[i], scaler_array[i]);
+        }
+    }
+
+    std::vector<T> transform_copy(const std::vector<T> &data) {
+        std::vector<T> data_copy(data);
+        transform(data_copy);
+        return std::move(data_copy);
+    }
+
+    void save_scaler(const std::string &filename = "../scaler") {
+        dataframe<double> dataset(std::vector<std::string>{"first", "second"});
+        for (const auto &item : scaler_array)
+            dataset.append({item.first, item.second});
+        dataset.to_csv(filename, ',');
+    }
+
+    void load_scaler(const std::string &filename) {
+        dataframe<double> dataset(filename);
+        scaler_array.clear();
+        for (unsigned long long int i = 0; i < dataset.row_num(); ++i) {
+            scaler_array.emplace_back(dataset(0)[i], dataset(1)[i]);
+        }
+    }
+};
+
+template<typename T = double>
+class min_max_scaler : public scaler<T> {
+public:
+    explicit min_max_scaler(const dataframe<T> &dataset) {
+        scaler<T>::scaler_array.clear();
+        for (const auto &array : dataset) {
+            T min_value = *array->begin();
+            T max_value = *array->begin();
+            for (const auto &item : *array) {
+                if (item < min_value) {
+                    min_value = item;
+                } else if (item > max_value) {
+                    max_value = item;
+                }
+            }
+            scaler<T>::scaler_array.emplace_back(std::pair<T, T>{min_value, max_value - min_value});
+        }
+    }
+
+    explicit min_max_scaler(const std::vector<std::pair<double, double>> &_scaler_array) : scaler<T>(
+            _scaler_array) {}
+
+    explicit min_max_scaler(std::vector<std::pair<double, double>> &&_scaler_array) : scaler<T>(
+            _scaler_array) {}
+
+    explicit min_max_scaler(const std::string &filename) : scaler<T>(filename) {}
+
+    explicit min_max_scaler() : scaler<T>() {}
+};
+
+template<typename T = double>
+class standard_scaler : public scaler<T> {
+public:
+    explicit standard_scaler(const dataframe<T> &dataset) {
+        scaler<T>::scaler_array.clear();
+        for (const auto &array : dataset) {
+            T sum = 0;
+            for (const auto &item : *array) {
+                sum += item;
+            }
+            T mean = sum / array->size();
+            sum = 0;
+            for (const auto &item : *array) {
+                sum += std::pow((item - mean), 2);
+            }
+            sum /= array->size() - 1;
+            scaler<T>::scaler_array.emplace_back(std::pair<T, T>{mean, std::sqrt(sum)});
+        }
+    }
+
+    explicit standard_scaler(const std::vector<std::pair<double, double>> &_scaler_array) : scaler<T>(
+            _scaler_array) {}
+
+    explicit standard_scaler(std::vector<std::pair<double, double>> &&_scaler_array) : scaler<T>(
+            _scaler_array) {}
+
+    explicit standard_scaler(const std::string &filename) : scaler<T>(filename) {}
+
+    explicit standard_scaler() : scaler<T>() {}
+};
 
 #endif // DATAFRAME_H

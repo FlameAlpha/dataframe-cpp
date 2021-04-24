@@ -1,7 +1,7 @@
 # dataframe-cpp
 dataframe class for c++ language
 - read from csv file
-- write into csv file
+- write into csv file and lib_svm file
 - min max scaler and standard scaler for each column's data
 - append one row from std::vector<T> & remove row
 - insert one column from std::vector<T> & remove column
@@ -10,7 +10,7 @@ dataframe class for c++ language
 - concat & add double dataFrame object (horizontally & vertically) 
 
 
-**Build requirements:** c++17 or c++ latest
+**Build requirements:** c++ 11 to 17
 
 ## Quick start
 
