@@ -8,6 +8,7 @@ dataframe class for c++ language
 - get a row of data  by index of the row 
 - get a column of data  by string of the column 
 - concat & add double dataFrame object (horizontally & vertically) 
+- support single variable with multiple types, including char, int, long int, float, double, std::string
 
 
 **Build requirements:** c++ 11 to 17
@@ -18,14 +19,15 @@ dataframe class for c++ language
 #include "dataframe.hpp"
 
 int main() {
+    using namespace flame;
     // create an empty dataframe object
-    dataframe<double> d1;
+    dataframe d1;
 
     // recreate a dataframe object from csv file or another
-    d1.read_csv("../test"); // d1 = std::move(dataframe<double>("../test"));
+    d1.read_csv("../test"); // d1 = std::move(dataframe<double>("../test.txt"));
 
     // create a dataframe object from csv file
-    dataframe<double> d2("../test");
+    dataframe d2("../test");
 
     // concat double dataframe object vertically
     auto d3 = d1 + d2;
@@ -40,8 +42,8 @@ int main() {
               << std::endl;
 
     // append one row from std::vector<T>
-    d3.append(std::vector<double>(d3.column_num()));
-    
+    d3.append(std::vector<user_variant>(d3.column_num()));
+
     // change data in ith row
     d3[4] = {6, 7, 8, 9, 10};
 
@@ -52,7 +54,7 @@ int main() {
     d3["f"][3] = 2;
 
     // insert std::vector<T> into dataframe directly
-    d3.insert("i", {6, 7, 8, 9, 10});
+    d3.insert("i", {6.6f, '7', 8, "hello", 10});
 
     // remove one row by index
     std::cout << ((d3.remove(2) ? "successfully" : "unsuccessfully") + std::string(" deleted a row!")) << std::endl;
@@ -61,7 +63,7 @@ int main() {
     std::cout << d3;
 
     // min_max_scaler<double> scaler(d3); // min max scaler
-    standard_scaler<double> scaler(d3); // standard scaler
+    toolbox::standard_scaler scaler(d3); // standard scaler
 
     // save scaler into file
     scaler.save_scaler("../scaler");
@@ -77,8 +79,6 @@ int main() {
     // write into csv file
     d3.to_csv("../final", ',');
 
-    // write into lib_svm file
-    d3.to_lib_svm_file("../final_svm");
     return 0;
 }
 ```
